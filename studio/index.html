@@ -50,6 +50,18 @@ canvas{width:100%;height:auto;border-radius:14px;border:1px solid var(--line);ma
   <input type="file" id="photo" accept="image/*" class="chip" style="width:100%">
 </div>
 
+<label class="small">Estilo Dola · arte con Gemini (gratis)</label>
+<div class="row" id="dola"></div>
+<input type="text" id="persona" placeholder="Opcional: descríbete (ej. hombre, ojos verdes, gorra negra)">
+<div class="row">
+  <button class="btn gold" id="gem">1 · Copiar prompt y abrir Gemini</button>
+</div>
+<p class="sub" id="gemhelp" style="margin:0">Elige un estilo arriba. En Gemini pega el prompt (y adjunta tu foto si quieres que salgas tú). Guarda la imagen y súbela aquí abajo.</p>
+<label class="small">2 · Sube la imagen de Gemini</label>
+<input type="file" id="photo2" accept="image/*" class="chip" style="width:100%">
+<label class="small">Oscurecer fondo para leer la frase</label>
+<input type="range" id="dark" min="0" max="80" value="35" style="width:100%">
+
 <label class="small">Tu firma</label>
 <input type="text" id="handle" value="@adriancisneeros__">
 
@@ -118,7 +130,7 @@ function draw(){
     const r=Math.max(W/photoImg.width,W/photoImg.height);
     const w=photoImg.width*r,h=photoImg.height*r;
     x.drawImage(photoImg,(W-w)/2,(W-h)/2,w,h);
-    x.fillStyle="rgba(0,0,0,.55)";x.fillRect(0,0,W,W);
+    x.fillStyle="rgba(0,0,0,"+($('dark').value/100)+")";x.fillRect(0,0,W,W);
   }
   // marcos
   if(S.frame==='gold'){
@@ -172,6 +184,35 @@ $('photo').onchange=e=>{
   const f=e.target.files[0];if(!f)return;
   const im=new Image();im.onload=()=>{photoImg=im;draw()};im.src=URL.createObjectURL(f);
 };
+// Estilos Dola + Gemini (gratis, sin API)
+const DOLA=["Arcilla","Aguada de tinta","Atardecer","Flores","Rayo de sol","Nevado","Bola de nieve","Junto al mar","Lápiz de color","Abstracto","Pintura al óleo","Vectores","Caricatura 3D","Impasto","Impresionismo","Cyberpunk","Anime","Arte pop","Piloto"];
+let dola=null;
+DOLA.forEach(n=>{
+  const b=document.createElement('button');b.className='chip';b.textContent=n;
+  b.onclick=()=>{dola=n;[...$('dola').children].forEach(e=>e.classList.toggle('on',e===b))};
+  $('dola').appendChild(b);
+});
+$('gem').onclick=async()=>{
+  if(!dola){$('gemhelp').textContent='Primero elige un estilo Dola.';return}
+  const frase=$('t').value.trim().replace(/\n/g,' ');
+  const p=$('persona').value.trim();
+  const prompt=`Crea una imagen cuadrada 1:1 en estilo ${dola}. Tema e inspiración: "${frase}". `+
+   (p?`Incluye a la persona: ${p}, conservando su identidad. `:'')+
+   `Sin texto, sin letras, sin marcas de agua. Deja el centro tranquilo y despejado para colocar una frase después.`;
+  try{await navigator.clipboard.writeText(prompt);$('gemhelp').textContent='Prompt copiado. Pégalo en Gemini y sube aquí la imagen que te dé.'}
+  catch(e){$('gemhelp').textContent=prompt}
+  window.open('https://gemini.google.com/app','_blank');
+};
+$('photo2').onchange=e=>{
+  const f=e.target.files[0];if(!f)return;
+  const im=new Image();im.onload=()=>{
+    photoImg=im;mode='p';
+    document.querySelectorAll('[data-m]').forEach(el=>el.classList.toggle('on',el.dataset.m==='p'));
+    $('photoBox').style.display='block';draw();
+    c.scrollIntoView({behavior:'smooth'});
+  };im.src=URL.createObjectURL(f);
+};
+$('dark').oninput=draw;
 $('t').oninput=draw;$('handle').oninput=draw;
 $('rnd').onclick=()=>{$('t').value=FRASES[Math.floor(Math.random()*FRASES.length)];draw()};
 function blob(){return new Promise(r=>c.toBlob(r,'image/png'))}
