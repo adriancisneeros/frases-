@@ -60,7 +60,7 @@ canvas{width:100%;height:auto;border-radius:14px;border:1px solid var(--line);ma
 <label class="small">Sube tu foto o la imagen de Gemini</label>
 <input type="file" id="photo2" accept="image/*" class="chip" style="width:100%">
 <label class="small">Oscurecer fondo para leer la frase</label>
-<input type="range" id="dark" min="0" max="80" value="35" style="width:100%">
+<input type="range" id="dark" min="0" max="80" value="18" style="width:100%">
 
 <label class="small">Tu firma</label>
 <input type="text" id="handle" value="@adriancisneeros__">
@@ -68,7 +68,7 @@ canvas{width:100%;height:auto;border-radius:14px;border:1px solid var(--line);ma
 <canvas id="c" width="1080" height="1080"></canvas>
 
 <div class="row">
-  <button class="btn gold" id="dl">Descargar PNG</button>
+  <button class="btn gold" id="dl">Guardar imagen</button>
   <button class="btn ghost" id="sh">Compartir</button>
 </div>
 
@@ -189,7 +189,7 @@ $('photo').onchange=e=>{
 function baseCanvas(){
   const cv=document.createElement('canvas');cv.width=cv.height=W;const g=cv.getContext('2d');
   const r=Math.max(W/photoImg.width,W/photoImg.height),w=photoImg.width*r,h=photoImg.height*r;
-  g.drawImage(photoImg,(W-w)/2,(W-h)/2,w,h);return cv;
+  g.drawImage(photoImg,(W-w)/2,(W-h)/2,w,h);return levels(cv);
 }
 function soften(cv,f){
   const o=document.createElement('canvas');o.width=o.height=W;
@@ -198,6 +198,19 @@ function soften(cv,f){
   const g=o.getContext('2d');g.imageSmoothingQuality='high';g.drawImage(s,0,0,W,W);return o;
 }
 const cl=v=>v<0?0:v>255?255:v;
+function levels(cv){
+  const g=cv.getContext('2d'),im=g.getImageData(0,0,W,W),d=im.data,h=new Uint32Array(256);
+  for(let i=0;i<d.length;i+=4)h[d[i]*.3+d[i+1]*.59+d[i+2]*.11|0]++;
+  const n=W*W;let a=0,lo=0,hi=255;
+  for(let v=0;v<256;v++){a+=h[v];if(a>n*.02){lo=v;break}}
+  a=0;for(let v=255;v>=0;v--){a+=h[v];if(a>n*.02){hi=v;break}}
+  if(hi-lo<40){hi=lo+40}
+  let mean=0;for(let v=0;v<256;v++)mean+=h[v]*v;mean/=n;
+  const gam=mean<90?.72:mean<115?.85:1;
+  for(let i=0;i<d.length;i+=4)for(let c=0;c<3;c++){
+    let t=(d[i+c]-lo)/(hi-lo);t=t<0?0:t>1?1:t;d[i+c]=Math.pow(t,gam)*255}
+  g.putImageData(im,0,0);return cv;
+}
 function pix(cv,fn){const g=cv.getContext('2d');const im=g.getImageData(0,0,W,W),d=im.data;fn(d);g.putImageData(im,0,0);return cv}
 function gray(d,i){return .3*d[i]+.59*d[i+1]+.11*d[i+2]}
 function sat(d,k){for(let i=0;i<d.length;i+=4){const y=gray(d,i);for(let c=0;c<3;c++)d[i+c]=cl(y+(d[i+c]-y)*k)}}
@@ -216,13 +229,14 @@ function edges(d,th){
 }
 function ink(d,e,a=1){for(let k=0;k<W*W;k++)if(e[k]){const i=k*4;d[i]*=1-a;d[i+1]*=1-a;d[i+2]*=1-a}}
 const FX={
- "Arte pop":()=>{let b=soften(baseCanvas(),2);return pix(b,d=>{con(d,1.3);sat(d,2.6);const e=edges(d,160);post(d,3);ink(d,e)})},
+ "Arte pop":()=>{let b=soften(baseCanvas(),2);return pix(b,d=>{con(d,1.4,10);sat(d,3.2);post(d,3);const e=edges(d,150);ink(d,e);
+    for(let y=0;y<W;y+=14)for(let x2=0;x2<W;x2+=14){const i=(y*W+x2)*4;if(gray(d,i)>150){for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){if(dx*dx+dy*dy<=5){const k=((y+dy)*W+(x2+dx))*4;if(k>=0&&k<d.length){d[k]=255;d[k+1]=60;d[k+2]=120}}}}}})},
  "Vectores":()=>{let b=soften(baseCanvas(),4);return pix(b,d=>{sat(d,1.5);post(d,5);const e=edges(d,140);ink(d,e,.85)})},
  "Anime":()=>{let b=soften(baseCanvas(),3);return pix(b,d=>{sat(d,1.7);con(d,1.1,6);post(d,6);const e=edges(d,170);ink(d,e,.8)})},
- "Pintura al óleo":()=>{let b=soften(baseCanvas(),5);return pix(b,d=>{sat(d,1.35);con(d,1.12);post(d,9)})},
+ "Pintura al óleo":()=>{let b=soften(baseCanvas(),7);return pix(b,d=>{sat(d,1.6);con(d,1.2);post(d,7)})},
  "Impasto":()=>{let b=soften(baseCanvas(),4);return pix(b,d=>{sat(d,1.5);con(d,1.2);post(d,6);const e=edges(d,90);ink(d,e,.35)})},
- "Impresionismo":()=>{let b=soften(baseCanvas(),3);return pix(b,d=>{sat(d,1.45);for(let i=0;i<d.length;i+=4){const n=(Math.random()-.5)*46;d[i]=cl(d[i]+n);d[i+1]=cl(d[i+1]+n);d[i+2]=cl(d[i+2]+n)}})},
- "Cyberpunk":()=>{let b=baseCanvas();return pix(b,d=>{con(d,1.25);for(let i=0;i<d.length;i+=4){const y=gray(d,i)/255;let r,g,bl;
+ "Impresionismo":()=>{let b=soften(baseCanvas(),4);return pix(b,d=>{sat(d,1.8);con(d,1.1,8);for(let i=0;i<d.length;i+=4){const n=(Math.random()-.5)*70;d[i]=cl(d[i]+n);d[i+1]=cl(d[i+1]+n);d[i+2]=cl(d[i+2]+n)}})},
+ "Cyberpunk":()=>{let b=baseCanvas();return pix(b,d=>{con(d,1.45);for(let i=0;i<d.length;i+=4){const y=gray(d,i)/255;let r,g,bl;
     if(y<.5){const t=y/.5;r=20+235*t;g=0+0*t;bl=70+90*t}else{const t=(y-.5)/.5;r=255-255*t;g=0+240*t;bl=160+95*t}
     d[i]=r;d[i+1]=g;d[i+2]=bl}})},
  "Lápiz de color":()=>{const base=baseCanvas(),inv=soften(base,6);
@@ -288,15 +302,23 @@ $('dark').oninput=draw;
 $('t').oninput=draw;$('handle').oninput=draw;
 $('rnd').onclick=()=>{$('t').value=FRASES[Math.floor(Math.random()*FRASES.length)];draw()};
 function blob(){return new Promise(r=>c.toBlob(r,'image/png'))}
-$('dl').onclick=async()=>{
-  const b=await blob();const a=document.createElement('a');
-  a.href=URL.createObjectURL(b);a.download='frase-'+Date.now()+'.png';a.click();
-};
-$('sh').onclick=async()=>{
-  const b=await blob();const f=new File([b],'frase.png',{type:'image/png'});
-  if(navigator.canShare&&navigator.canShare({files:[f]}))try{await navigator.share({files:[f]})}catch(e){}
-  else $('dl').click();
-};
+function overlay(url){
+  let o=$('ov');if(o)o.remove();
+  o=document.createElement('div');o.id='ov';
+  o.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;gap:14px';
+  o.innerHTML='<img src="'+url+'" style="max-width:100%;max-height:70vh;border-radius:12px"><div style="color:#f3efe6;text-align:center;font-size:16px">Mantén presionada la imagen<br>y elige <b>Guardar en Fotos</b></div><button class="btn gold" style="flex:none;width:200px">Cerrar</button>';
+  o.querySelector('button').onclick=()=>o.remove();
+  document.body.appendChild(o);
+}
+async function save(){
+  const b=await blob();const f=new File([b],'frase-'+Date.now()+'.png',{type:'image/png'});
+  if(navigator.canShare&&navigator.canShare({files:[f]})){
+    try{await navigator.share({files:[f]});return}catch(e){if(e&&e.name==='AbortError')return}
+  }
+  try{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=f.name;document.body.appendChild(a);a.click();a.remove()}catch(e){}
+  overlay(c.toDataURL('image/png'));
+}
+$('dl').onclick=save;$('sh').onclick=save;
 // favoritos
 function favs(){try{return JSON.parse(localStorage.getItem('fav')||'[]')}catch(e){return[]}}
 function renderFav(){
