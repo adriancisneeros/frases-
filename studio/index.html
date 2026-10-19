@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Frases Studio</title>
+<style>
+:root{--bg:#0b0b0c;--card:#151517;--line:#2a2a2d;--gold:#d4af37;--txt:#f3efe6;--mut:#8d8a82}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;padding:16px;max-width:560px;margin:auto}
+h1{font-size:22px;margin:8px 0 2px;font-weight:600}
+h1 span{color:var(--gold)}
+p.sub{color:var(--mut);margin:0 0 16px;font-size:14px}
+textarea{width:100%;min-height:96px;background:var(--card);border:1px solid var(--line);border-radius:14px;color:var(--txt);font-size:17px;padding:14px;resize:vertical;font-family:inherit}
+textarea:focus{outline:1px solid var(--gold)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.chip{border:1px solid var(--line);background:var(--card);color:var(--txt);border-radius:999px;padding:9px 14px;font-size:14px;cursor:pointer}
+.chip.on{background:var(--gold);color:#111;border-color:var(--gold);font-weight:600}
+label.small{display:block;color:var(--mut);font-size:12px;letter-spacing:.08em;text-transform:uppercase;margin-top:14px}
+input[type=text]{width:100%;background:var(--card);border:1px solid var(--line);border-radius:12px;color:var(--txt);padding:11px 14px;font-size:15px}
+canvas{width:100%;height:auto;border-radius:14px;border:1px solid var(--line);margin-top:16px;display:block}
+.btn{flex:1;border:0;border-radius:14px;padding:14px;font-size:16px;font-weight:600;cursor:pointer}
+.gold{background:var(--gold);color:#111}
+.ghost{background:var(--card);color:var(--txt);border:1px solid var(--line)}
+#fav{display:flex;gap:8px;overflow-x:auto;margin-top:8px}
+#fav button{flex:none;max-width:200px;text-align:left;font-size:12px}
+.foot{color:var(--mut);font-size:12px;text-align:center;margin:22px 0 8px}
+</style>
+</head>
+<body>
+<h1>Frases <span>Studio</span></h1>
+<p class="sub">Escribe una vez. Elige tu universo.</p>
+
+<textarea id="t" placeholder="Escribe tu frase…">Creando todo con intención. Incluso los días difíciles.</textarea>
+
+<div class="row">
+  <button class="chip" id="rnd">✨ Inspiración</button>
+  <button class="chip" id="fv">♡ Guardar</button>
+</div>
+
+<label class="small">Estilo</label>
+<div class="row" id="styles"></div>
+
+<label class="small">Marco</label>
+<div class="row">
+  <button class="chip on" data-m="g">Genérico (tu firma)</button>
+  <button class="chip" data-m="p">Personalizado (foto)</button>
+</div>
+<div id="photoBox" style="display:none">
+  <input type="file" id="photo" accept="image/*" class="chip" style="width:100%">
+</div>
+
+<label class="small">Tu firma</label>
+<input type="text" id="handle" value="@adriancisneeros__">
+
+<canvas id="c" width="1080" height="1080"></canvas>
+
+<div class="row">
+  <button class="btn gold" id="dl">Descargar PNG</button>
+  <button class="btn ghost" id="sh">Compartir</button>
+</div>
+
+<label class="small">Favoritas</label>
+<div id="fav"></div>
+
+<p class="foot">Hecho con intención · CAWI</p>
+
+<script>
+const $=id=>document.getElementById(id);
+const c=$('c'),x=c.getContext('2d'),W=1080;
+const FRASES=[
+ "Creando todo con intención.\nIncluso los días difíciles.",
+ "Lo que hoy pesa,\nmañana construye.",
+ "Mantener una actitud positiva no significa que tengas que ser feliz todo el tiempo.",
+ "Haz el bien\nsin mirar a quién.",
+ "No tengo todo resuelto.\nTengo intención.",
+ "Tu ejemplo es\nel mejor legado.",
+ "Despacio también es avanzar.",
+ "Lo que creas con intención\nte crea a ti."
+];
+const STYLES={
+ gold:{n:"Gold Architect",bg:["#0a0a0a","#161208"],fg:"#f6efdc",ac:"#d4af37",frame:"gold",font:"Georgia,serif"},
+ black:{n:"Minimal Black",bg:["#000","#000"],fg:"#ffffff",ac:"#888",frame:"none",font:"-apple-system,Helvetica,Arial,sans-serif"},
+ beige:{n:"Beige Minimal",bg:["#efe6d6","#e6dac5"],fg:"#2b2418",ac:"#8a7552",frame:"thin",font:"Georgia,serif"},
+ mid:{n:"Midnight Gradient",bg:["#0b1030","#3a1c5e"],fg:"#fff",ac:"#c9b8ff",frame:"none",font:"-apple-system,Helvetica,Arial,sans-serif"},
+ blue:{n:"Blueprint Gold",bg:["#0a1a33","#0a1a33"],fg:"#fff",ac:"#d4af37",frame:"grid",font:"'Courier New',monospace"},
+ kawaii:{n:"Kawaii",bg:["#0a0a0a","#0a0a0a"],fg:"#fff",ac:"#d4af37",frame:"kawaii",font:"-apple-system,Helvetica,Arial,sans-serif"}
+};
+let style='gold',mode='g',photoImg=null;
+
+function wrap(txt,maxW,size,font){
+  x.font=`600 ${size}px ${font}`;
+  const out=[];
+  txt.split('\n').forEach(p=>{
+    let line='';
+    p.split(' ').forEach(w=>{
+      const t=line?line+' '+w:w;
+      if(x.measureText(t).width>maxW&&line){out.push(line);line=w}else line=t;
+    });
+    out.push(line);
+  });
+  return out;
+}
+function rr(a,b,w,h,r){x.beginPath();x.roundRect(a,b,w,h,r)}
+function star(cx,cy,s,col){
+  x.save();x.translate(cx,cy);x.fillStyle=col;x.beginPath();
+  for(let i=0;i<8;i++){const r=i%2?s*.28:s;const a=i*Math.PI/4-Math.PI/2;x.lineTo(Math.cos(a)*r,Math.sin(a)*r)}
+  x.closePath();x.fill();x.restore();
+}
+function draw(){
+  const S=STYLES[style];
+  x.clearRect(0,0,W,W);
+  // fondo
+  if(style==='kawaii'){x.fillStyle="#f6efe2";x.fillRect(0,0,W,W)}
+  else{const g=x.createLinearGradient(0,0,W,W);g.addColorStop(0,S.bg[0]);g.addColorStop(1,S.bg[1]);x.fillStyle=g;x.fillRect(0,0,W,W)}
+  // foto personalizada
+  if(mode==='p'&&photoImg){
+    const r=Math.max(W/photoImg.width,W/photoImg.height);
+    const w=photoImg.width*r,h=photoImg.height*r;
+    x.drawImage(photoImg,(W-w)/2,(W-h)/2,w,h);
+    x.fillStyle="rgba(0,0,0,.55)";x.fillRect(0,0,W,W);
+  }
+  // marcos
+  if(S.frame==='gold'){
+    x.strokeStyle=S.ac;x.lineWidth=3;rr(70,70,W-140,W-140,28);x.stroke();
+    x.lineWidth=1;x.globalAlpha=.5;rr(90,90,W-180,W-180,20);x.stroke();x.globalAlpha=1;
+  }else if(S.frame==='thin'){
+    x.strokeStyle=S.ac;x.lineWidth=2;x.strokeRect(70,70,W-140,W-140);
+  }else if(S.frame==='grid'){
+    x.strokeStyle="rgba(212,175,55,.15)";x.lineWidth=1;
+    for(let i=0;i<=W;i+=60){x.beginPath();x.moveTo(i,0);x.lineTo(i,W);x.stroke();x.beginPath();x.moveTo(0,i);x.lineTo(W,i);x.stroke()}
+    x.strokeStyle=S.ac;x.lineWidth=3;x.strokeRect(80,80,W-160,W-160);
+  }else if(S.frame==='kawaii'){
+    x.fillStyle="#0a0a0a";rr(70,70,W-140,W-140,70);x.fill();
+    x.strokeStyle=S.ac;x.lineWidth=5;rr(70,70,W-140,W-140,70);x.stroke();
+    star(160,170,28,S.ac);star(W-170,190,20,S.ac);star(W-250,140,10,"#f6e7a8");star(210,W-170,14,"#f6e7a8");
+  }
+  // texto
+  const raw=$('t').value.trim()||"Escribe tu frase…";
+  let size=84,lines;
+  const maxW=W-300;
+  do{lines=wrap(raw,maxW,size,S.font);size-=4}while(lines.length*size*1.25>W-420&&size>36);
+  size+=4;
+  x.font=`600 ${size}px ${S.font}`;x.fillStyle=S.fg;x.textAlign="center";x.textBaseline="middle";
+  const lh=size*1.25,top=W/2-(lines.length*lh)/2+lh/2-30;
+  lines.forEach((l,i)=>x.fillText(l,W/2,top+i*lh));
+  // firma pill
+  const h=$('handle').value.trim();
+  if(h){
+    x.font=`500 30px ${S.font}`;
+    const tw=x.measureText(h).width+70;
+    x.fillStyle="rgba(0,0,0,.35)";
+    if(style==='beige')x.fillStyle="rgba(255,255,255,.5)";
+    rr(W/2-tw/2,W-210,tw,64,32);x.fill();
+    x.strokeStyle=style==='black'?"#666":"#d4af37";x.lineWidth=2;rr(W/2-tw/2,W-210,tw,64,32);x.stroke();
+    x.fillStyle=style==='beige'?"#6b5420":"#d4af37";
+    x.fillText(h,W/2,W-177);
+  }
+}
+// UI
+const box=$('styles');
+Object.entries(STYLES).forEach(([k,s])=>{
+  const b=document.createElement('button');b.className='chip'+(k===style?' on':'');b.textContent=s.n;
+  b.onclick=()=>{style=k;[...box.children].forEach(e=>e.classList.remove('on'));b.classList.add('on');draw()};
+  box.appendChild(b);
+});
+document.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{
+  mode=b.dataset.m;document.querySelectorAll('[data-m]').forEach(e=>e.classList.toggle('on',e===b));
+  $('photoBox').style.display=mode==='p'?'block':'none';draw();
+});
+$('photo').onchange=e=>{
+  const f=e.target.files[0];if(!f)return;
+  const im=new Image();im.onload=()=>{photoImg=im;draw()};im.src=URL.createObjectURL(f);
+};
+$('t').oninput=draw;$('handle').oninput=draw;
+$('rnd').onclick=()=>{$('t').value=FRASES[Math.floor(Math.random()*FRASES.length)];draw()};
+function blob(){return new Promise(r=>c.toBlob(r,'image/png'))}
+$('dl').onclick=async()=>{
+  const b=await blob();const a=document.createElement('a');
+  a.href=URL.createObjectURL(b);a.download='frase-'+Date.now()+'.png';a.click();
+};
+$('sh').onclick=async()=>{
+  const b=await blob();const f=new File([b],'frase.png',{type:'image/png'});
+  if(navigator.canShare&&navigator.canShare({files:[f]}))try{await navigator.share({files:[f]})}catch(e){}
+  else $('dl').click();
+};
+// favoritos
+function favs(){try{return JSON.parse(localStorage.getItem('fav')||'[]')}catch(e){return[]}}
+function renderFav(){
+  const box=$('fav');box.innerHTML='';
+  favs().forEach(t=>{const b=document.createElement('button');b.className='chip';b.textContent=t.replace(/\n/g,' ').slice(0,40);
+    b.onclick=()=>{$('t').value=t;draw()};box.appendChild(b)});
+}
+$('fv').onclick=()=>{
+  const t=$('t').value.trim();if(!t)return;
+  try{const f=favs().filter(v=>v!==t);f.unshift(t);localStorage.setItem('fav',JSON.stringify(f.slice(0,20)))}catch(e){}
+  renderFav();
+};
+renderFav();draw();
+</script>
+</body>
+</html>
